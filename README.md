@@ -7,7 +7,9 @@ Something to search filenames and not just inside files for vscode explorer. Can
 
 ## Features
 - Persistent
-- Option to hide files that matches but are in gitignore file pattern
+- Option to hide files that matches but are in gitignore file pattern <br><br>
+<img width="250" height="auto" alt="image" src="https://github.com/user-attachments/assets/a3a1a70f-f503-4525-aa7c-86b20a8d467d" /><br>____<br><br>
+<img width="250" height="auto" alt="image" src="https://github.com/user-attachments/assets/42ed694b-351f-4e0e-9bb8-0d1d64e1823b" /><br>
 - Three search options
   - Wildcard - just type as *.cpp
   - Regex - start with r:\.cpp
