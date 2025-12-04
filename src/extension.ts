@@ -5,6 +5,11 @@ import * as crypto from 'crypto';
 
 type SortMode = 'name' | 'path' | 'ext';
 
+interface GitignorePattern {
+    pattern: string;
+    isNegation: boolean;
+}
+
 class FileItem extends vscode.TreeItem {
     constructor(
         public readonly uri: vscode.Uri,
@@ -27,7 +32,7 @@ class FileFilterProvider implements vscode.TreeDataProvider<FileItem> {
     private files: FileItem[] = [];
     private sortMode: SortMode = 'name';
     private hideIgnored: boolean = false;
-    private ignoredPatterns: string[] = [];
+    private ignoredPatterns: GitignorePattern[] = [];
     private watcher: vscode.FileSystemWatcher | undefined;
 
     constructor() {
@@ -43,7 +48,7 @@ class FileFilterProvider implements vscode.TreeDataProvider<FileItem> {
     }
 
     private async loadGitignore() {
-        this.ignoredPatterns = ['node_modules'];
+        this.ignoredPatterns = [{ pattern: 'node_modules', isNegation: false }];
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders) return;
 
@@ -51,49 +56,77 @@ class FileFilterProvider implements vscode.TreeDataProvider<FileItem> {
         try {
             if (fs.existsSync(gitignorePath)) {
                 const content = fs.readFileSync(gitignorePath, 'utf8');
-                const patterns = content
+                const lines = content
                     .split('\n')
                     .map(line => line.trim())
                     .filter(line => line && !line.startsWith('#'));
-                this.ignoredPatterns.push(...patterns);
+
+                for (const line of lines) {
+                    if (line.startsWith('!')) {
+                        this.ignoredPatterns.push({
+                            pattern: line.slice(1),
+                            isNegation: true
+                        });
+                    } else {
+                        this.ignoredPatterns.push({
+                            pattern: line,
+                            isNegation: false
+                        });
+                    }
+                }
             }
         } catch {}
+    }
+
+    private matchesPattern(normalizedPath: string, pattern: string): boolean {
+        const normalizedPattern = pattern.replace(/\\/g, '/');
+
+        // Check for directory patterns (ending with /)
+        if (normalizedPattern.endsWith('/')) {
+            const dirPattern = normalizedPattern.slice(0, -1);
+            if (normalizedPath.startsWith(dirPattern + '/') || normalizedPath === dirPattern) {
+                return true;
+            }
+        }
+
+        // Check for exact and partial matches
+        if (normalizedPath.includes('/' + normalizedPattern + '/') ||
+            normalizedPath.startsWith(normalizedPattern + '/') ||
+            normalizedPath.endsWith('/' + normalizedPattern) ||
+            normalizedPath === normalizedPattern) {
+            return true;
+        }
+
+        // Convert glob pattern to regex
+        try {
+            const regexPattern = normalizedPattern
+                .replace(/\./g, '\\.')
+                .replace(/\*\*/g, '{{GLOBSTAR}}')
+                .replace(/\*/g, '[^/]*')
+                .replace(/\{\{GLOBSTAR\}\}/g, '.*')
+                .replace(/\?/g, '.');
+            const regex = new RegExp(`(^|/)${regexPattern}($|/)`);
+            if (regex.test(normalizedPath)) return true;
+        } catch {}
+
+        return false;
     }
 
     private isIgnored(relativePath: string): boolean {
         if (!this.hideIgnored) return false;
 
         const normalizedPath = relativePath.replace(/\\/g, '/');
-        
-        for (const pattern of this.ignoredPatterns) {
-            const normalizedPattern = pattern.replace(/\\/g, '/');
-            
-            if (normalizedPattern.endsWith('/')) {
-                const dirPattern = normalizedPattern.slice(0, -1);
-                if (normalizedPath.startsWith(dirPattern + '/') || normalizedPath === dirPattern) {
-                    return true;
-                }
-            }
-            
-            if (normalizedPath.includes('/' + normalizedPattern + '/') || 
-                normalizedPath.startsWith(normalizedPattern + '/') ||
-                normalizedPath.endsWith('/' + normalizedPattern) ||
-                normalizedPath === normalizedPattern) {
-                return true;
-            }
+        let ignored = false;
 
-            try {
-                const regexPattern = normalizedPattern
-                    .replace(/\./g, '\\.')
-                    .replace(/\*\*/g, '{{GLOBSTAR}}')
-                    .replace(/\*/g, '[^/]*')
-                    .replace(/\{\{GLOBSTAR\}\}/g, '.*')
-                    .replace(/\?/g, '.');
-                const regex = new RegExp(`(^|/)${regexPattern}($|/)`);
-                if (regex.test(normalizedPath)) return true;
-            } catch {}
+        // Process patterns in order - later patterns override earlier ones
+        for (const entry of this.ignoredPatterns) {
+            if (this.matchesPattern(normalizedPath, entry.pattern)) {
+                // If it's a negation pattern, un-ignore; otherwise, ignore
+                ignored = !entry.isNegation;
+            }
         }
-        return false;
+
+        return ignored;
     }
 
     async setPattern(pattern: string) {
