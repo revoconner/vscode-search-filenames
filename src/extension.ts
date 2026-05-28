@@ -21,6 +21,11 @@ class FileItem extends vscode.TreeItem {
         this.description = path.dirname(relativePath);
         this.resourceUri = uri;
         this.contextValue = 'fileItem';
+        this.command = {
+            command: 'vscode.open',
+            title: 'Open File',
+            arguments: [uri]
+        };
     }
 }
 
@@ -295,10 +300,6 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('fileFilter.sortByName', () => provider.setSortMode('name')),
         vscode.commands.registerCommand('fileFilter.sortByPath', () => provider.setSortMode('path')),
         vscode.commands.registerCommand('fileFilter.sortByExtension', () => provider.setSortMode('ext')),
-
-        vscode.commands.registerCommand('fileFilter.openFile', (item: FileItem) => {
-            vscode.window.showTextDocument(item.uri);
-        }),
 
         vscode.commands.registerCommand('fileFilter.revealInExplorer', (item: FileItem) => {
             vscode.commands.executeCommand('revealFileInOS', item.uri);
