@@ -30,7 +30,6 @@ Something to search filenames and not just inside files for vscode explorer. Can
 
 
 ## How is it different from ctrl+p or ctrl+alt+f
-- It's not quick open. Clicking on a name doesnt open it.
 - It doesn't disappear when you click or lose focus.
 - The files are right there as a list, instead of hiding behind folders and subfolders with just a highlight.
 - It doesnt searches inside the file, just the name, so you filter our something like .py or .cpp file
